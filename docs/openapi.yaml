@@ -1,0 +1,570 @@
+openapi: 3.1.0
+info:
+  title: Radwan Admin API
+  version: 1.0.0
+  description: |
+    Content API for the El Radwan landing page and its /admin portal.
+
+    - Every 2xx body is `{ "data": ... }`; every error body is `{ "message": "..." }` (Arabic, shown to the owner as-is).
+    - Content GETs are public. Writes and /auth/* (except login) need `Authorization: Bearer <token>`.
+    - A 401 logs the admin out. Lists are returned in display order.
+    - Seed data / example payloads: `public/mock-api/*.json` in the frontend repo.
+
+servers:
+  - url: https://api.example.com
+
+security:
+  - bearer: []
+
+tags:
+  - name: Auth
+  - name: Content
+  - name: Lists
+  - name: Files
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and get a token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [token, user]
+                    properties:
+                      token: { type: string }
+                      user: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user (session check)
+      responses:
+        "200":
+          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/UserResponse" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke the token
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+
+  /auth/password:
+    put:
+      tags: [Auth]
+      summary: Change password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /site-info:
+    get:
+      tags: [Content]
+      security: []
+      responses:
+        "200":
+          {
+            description: OK,
+            content: { application/json: { schema: { $ref: "#/components/schemas/SiteInfoResponse" } } },
+          }
+    put:
+      tags: [Content]
+      summary: Replace the whole object
+      requestBody:
+        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/SiteInfo" } } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/SiteInfoResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /hours:
+    get:
+      tags: [Content]
+      security: []
+      responses:
+        "200":
+          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/HoursResponse" } } } }
+    put:
+      tags: [Content]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Hours" } } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/HoursResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /hero:
+    get:
+      tags: [Content]
+      security: []
+      responses:
+        "200":
+          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/HeroResponse" } } } }
+    put:
+      tags: [Content]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Hero" } } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/HeroResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /banner:
+    get:
+      tags: [Content]
+      security: []
+      responses:
+        "200":
+          {
+            description: OK,
+            content: { application/json: { schema: { $ref: "#/components/schemas/BannerResponse" } } },
+          }
+    put:
+      tags: [Content]
+      requestBody:
+        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Banner" } } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/BannerResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /seo:
+    get:
+      tags: [Content]
+      security: []
+      responses:
+        "200":
+          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/SeoResponse" } } } }
+    put:
+      tags: [Content]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Seo" } } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/SeoResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /services:
+    get:
+      tags: [Lists]
+      summary: All services in display order (hidden ones included)
+      security: []
+      responses:
+        "200":
+          {
+            description: OK,
+            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceListResponse" } } },
+          }
+    post:
+      tags: [Lists]
+      summary: Create (appended at the end)
+      requestBody:
+        {
+          required: true,
+          content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceInput" } } },
+        }
+      responses:
+        "200":
+          {
+            description: Created,
+            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /services/reorder:
+    put:
+      tags: [Lists]
+      summary: Set the order (must list every id exactly once)
+      requestBody:
+        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Reorder" } } } }
+      responses:
+        "200":
+          {
+            description: Reordered list,
+            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceListResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /services/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put:
+      tags: [Lists]
+      summary: Partial update (only the fields sent change)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RepairServicePatch" } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceResponse" } } },
+          }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Lists]
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /reviews:
+    get:
+      tags: [Lists]
+      summary: All reviews in display order (hidden ones included)
+      security: []
+      responses:
+        "200":
+          {
+            description: OK,
+            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewListResponse" } } },
+          }
+    post:
+      tags: [Lists]
+      summary: Create (appended at the end)
+      requestBody:
+        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ReviewInput" } } } }
+      responses:
+        "200":
+          {
+            description: Created,
+            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /reviews/reorder:
+    put:
+      tags: [Lists]
+      summary: Set the order (must list every id exactly once)
+      requestBody:
+        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Reorder" } } } }
+      responses:
+        "200":
+          {
+            description: Reordered list,
+            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewListResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /reviews/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    put:
+      tags: [Lists]
+      summary: Partial update (only the fields sent change)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ReviewPatch" } } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewResponse" } } },
+          }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [Lists]
+      responses:
+        "200": { $ref: "#/components/responses/Empty" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /gallery:
+    get:
+      tags: [Content]
+      summary: The 4 fixed gallery slots
+      security: []
+      responses:
+        "200":
+          {
+            description: OK,
+            content: { application/json: { schema: { $ref: "#/components/schemas/GalleryResponse" } } },
+          }
+    put:
+      tags: [Content]
+      summary: Replace all 4 slots (ids and layouts must stay the same)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: array, minItems: 4, maxItems: 4, items: { $ref: "#/components/schemas/GalleryPhoto" } }
+      responses:
+        "200":
+          {
+            description: Saved,
+            content: { application/json: { schema: { $ref: "#/components/schemas/GalleryResponse" } } },
+          }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /uploads:
+    post:
+      tags: [Files]
+      summary: Upload an image and get its public URL
+      description: Browser sends WebP, at most 1600px wide. Accept jpeg/png/webp up to 10 MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200":
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [url]
+                    properties:
+                      url: { type: string, example: "https://cdn.example.com/u/8f2c.webp" }
+        "413": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Error:
+      description: Error with a human-readable Arabic message
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message]
+            properties:
+              message: { type: string, example: "الإيميل أو كلمة السر غلط" }
+              errors:
+                type: object
+                description: Optional per-field messages
+                additionalProperties: { type: string }
+    Empty:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data: { type: "null" }
+
+  schemas:
+    User:
+      type: object
+      required: [id, name, email]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+    UserResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/User" } }
+
+    Mobile:
+      type: string
+      pattern: "^01[0125]\\d{8}$"
+      example: "01141592426"
+
+    SiteInfo:
+      type: object
+      required: [name, area, address, footerArea, phone, whatsapp, email, mapUrl, facebook, rating]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        area: { type: string, minLength: 1, maxLength: 80 }
+        address: { type: string, minLength: 1, maxLength: 200 }
+        footerArea: { type: string, minLength: 1, maxLength: 80 }
+        phone: { $ref: "#/components/schemas/Mobile" }
+        whatsapp: { $ref: "#/components/schemas/Mobile" }
+        email: { type: string, format: email }
+        mapUrl: { type: string, format: uri }
+        facebook:
+          type: object
+          required: [page, reviews, photos]
+          properties:
+            page: { type: string, format: uri }
+            reviews: { type: string, format: uri }
+            photos: { type: string, format: uri }
+        rating:
+          type: object
+          required: [percent, count]
+          properties:
+            percent: { type: integer, minimum: 0, maximum: 100 }
+            count: { type: integer, minimum: 0 }
+    SiteInfoResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/SiteInfo" } }
+
+    Hours:
+      type: object
+      required: [title, from, to, note]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 60 }
+        from: { type: string, minLength: 1, maxLength: 40 }
+        to: { type: string, minLength: 1, maxLength: 40 }
+        note: { type: string, maxLength: 120 }
+    HoursResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/Hours" } }
+
+    Hero:
+      type: object
+      required: [description, image, imageAlt]
+      properties:
+        description: { type: string, minLength: 1, maxLength: 300 }
+        image: { type: string, description: Image URL from /uploads }
+        imageAlt: { type: string, minLength: 1, maxLength: 150 }
+    HeroResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/Hero" } }
+
+    Banner:
+      type: object
+      required: [enabled, text, variant, endsAt]
+      description: "`text` is required (non-empty) when `enabled` is true."
+      properties:
+        enabled: { type: boolean }
+        text: { type: string, maxLength: 160 }
+        variant: { type: string, enum: [info, warning] }
+        endsAt: { type: [string, "null"], format: date, description: "Last day shown (Cairo time), or null" }
+    BannerResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/Banner" } }
+
+    Seo:
+      type: object
+      required: [title, description, image]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 70 }
+        description: { type: string, minLength: 1, maxLength: 170 }
+        image: { type: string, description: "Share image URL, ideally 1200x630" }
+    SeoResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/Seo" } }
+
+    RepairServiceInput:
+      type: object
+      required: [symptom, solution, visible]
+      properties:
+        symptom: { type: string, minLength: 1, maxLength: 100 }
+        solution: { type: string, minLength: 1, maxLength: 300 }
+        visible: { type: boolean }
+    RepairServicePatch:
+      type: object
+      minProperties: 1
+      properties:
+        symptom: { type: string, minLength: 1, maxLength: 100 }
+        solution: { type: string, minLength: 1, maxLength: 300 }
+        visible: { type: boolean }
+    RepairService:
+      allOf:
+        - type: object
+          required: [id]
+          properties: { id: { type: string, readOnly: true } }
+        - $ref: "#/components/schemas/RepairServiceInput"
+    RepairServiceResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/RepairService" } }
+    RepairServiceListResponse:
+      type: object
+      properties: { data: { type: array, items: { $ref: "#/components/schemas/RepairService" } } }
+
+    ReviewInput:
+      type: object
+      required: [name, text, visible]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        text: { type: string, minLength: 1, maxLength: 400 }
+        visible: { type: boolean }
+    ReviewPatch:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        text: { type: string, minLength: 1, maxLength: 400 }
+        visible: { type: boolean }
+    Review:
+      allOf:
+        - type: object
+          required: [id]
+          properties: { id: { type: string, readOnly: true } }
+        - $ref: "#/components/schemas/ReviewInput"
+    ReviewResponse:
+      type: object
+      properties: { data: { $ref: "#/components/schemas/Review" } }
+    ReviewListResponse:
+      type: object
+      properties: { data: { type: array, items: { $ref: "#/components/schemas/Review" } } }
+
+    Reorder:
+      type: object
+      required: [ids]
+      properties:
+        ids: { type: array, items: { type: string }, description: Every id exactly once, in the new order }
+
+    GalleryPhoto:
+      type: object
+      required: [id, layout, image, caption]
+      properties:
+        id: { type: string, enum: [feature, tile-1, tile-2, wide] }
+        layout: { type: string, enum: [feature, tile, wide] }
+        image: { type: string }
+        caption: { type: string, minLength: 1, maxLength: 80 }
+    GalleryResponse:
+      type: object
+      properties: { data: { type: array, items: { $ref: "#/components/schemas/GalleryPhoto" } } }

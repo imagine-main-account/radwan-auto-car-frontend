@@ -1,0 +1,18 @@
+{
+  "data": {
+    "name": "مركز الرضوان لصيانة السيارات الحديثة",
+    "area": "اللبيني، الهرم، الجيزة",
+    "address": "اللبيني، الهرم، بجوار التوحيد والنور، شارع العدوي، الجيزة",
+    "footerArea": "الهرم، الجيزة",
+    "phone": "01141592426",
+    "whatsapp": "01062834286",
+    "email": "mradwan13886@gmail.com",
+    "mapUrl": "https://www.google.com/maps/search/?api=1&query=29.978969,31.156391",
+    "facebook": {
+      "page": "https://www.facebook.com/ElRadwan.ElHaram/",
+      "reviews": "https://www.facebook.com/ElRadwan.ElHaram/reviews",
+      "photos": "https://www.facebook.com/ElRadwan.ElHaram/photos"
+    },
+    "rating": { "percent": 98, "count": 303 }
+  }
+}

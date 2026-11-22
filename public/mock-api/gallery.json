@@ -1,0 +1,8 @@
+{
+  "data": [
+    { "id": "feature", "layout": "feature", "image": "/images/workshop/head.webp", "caption": "رأس محرك متثبت على مكنة التجليخ" },
+    { "id": "tile-1", "layout": "tile", "image": "/images/workshop/valves.webp", "caption": "قاعدة البلوف بعد التجليخ" },
+    { "id": "tile-2", "layout": "tile", "image": "/images/workshop/drill.webp", "caption": "تظبيط بيت البلف على المكنة" },
+    { "id": "wide", "layout": "wide", "image": "/images/workshop/engine.webp", "caption": "كشف على محرك جوه الورشة" }
+  ]
+}
