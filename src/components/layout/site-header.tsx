@@ -3,10 +3,12 @@ import { Container } from "@/components/shared/container";
 import { LinkButton } from "@/components/shared/link-button";
 import { Logo } from "@/components/shared/logo";
 import { navLinks } from "@/config/site";
+import { ScrollProgressRoad } from "./scroll-progress-road";
 
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-backdrop-filter:bg-background/70">
+      <ScrollProgressRoad />
       <Container className="flex items-center justify-between gap-4 py-2">
         <Logo />
 

@@ -16,6 +16,7 @@ import {
   useCreateRepairService,
   useDeleteRepairService,
   useGetAllRepairServices,
+  useIsReorderingRepairServices,
   useReorderRepairServices,
   useUpdateRepairService,
 } from "@/services/repair-services";
@@ -72,6 +73,7 @@ function ServiceRow({ service: { id, ...service }, index, services }: ServiceRow
   const update = useUpdateRepairService(id);
   const remove = useDeleteRepairService(id);
   const reorder = useReorderRepairServices();
+  const reordering = useIsReorderingRepairServices();
   const [editing, setEditing] = useState(false);
 
   return (
@@ -86,6 +88,7 @@ function ServiceRow({ service: { id, ...service }, index, services }: ServiceRow
         onDelete={() => remove.mutate()}
         deleteTitle={`تمسح خدمة «${service.symptom}»؟`}
         busy={update.isPending || remove.isPending}
+        moveLocked={reordering}
       >
         <p className="font-semibold">{service.symptom}</p>
         <p className="mt-1 text-sm leading-6 text-muted-foreground">{service.solution}</p>

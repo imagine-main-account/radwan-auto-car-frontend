@@ -2,16 +2,9 @@ import axios, { isAxiosError } from "axios";
 
 import { authToken } from "@/lib/auth-token";
 
-/** With no `VITE_API_URL`, requests are answered by the mock API (`public/mock-api` + localStorage). */
-export const USE_MOCK_API = !import.meta.env.VITE_API_URL;
-
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api",
+  baseURL: import.meta.env.VITE_API_URL,
   headers: { Accept: "application/json" },
-  ...(USE_MOCK_API && {
-    // Loaded on demand so the mock never ships in the real build's main bundle.
-    adapter: async (config) => (await import("@/lib/mock-api")).mockAdapter(config),
-  }),
 });
 
 api.interceptors.request.use((config) => {

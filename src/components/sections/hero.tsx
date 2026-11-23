@@ -32,7 +32,8 @@ export function Hero() {
         />
       </div>
 
-      <Container className="relative flex pt-2 pb-12 lg:min-h-[620px] lg:items-center lg:py-24">
+      {/* Phones / tablets: pulled up over the photo's faded bottom, so the title and buttons sit higher. */}
+      <Container className="relative -mt-14 flex pb-12 sm:-mt-20 lg:mt-0 lg:min-h-[620px] lg:items-center lg:py-24">
         <div className="flex max-w-2xl flex-col gap-7">
           <Badge variant="outline" className="border-input text-muted-foreground">
             <MapPin aria-hidden="true" className="text-signal" />

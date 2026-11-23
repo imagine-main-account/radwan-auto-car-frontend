@@ -11,17 +11,22 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { brand } from "@/config/site";
 import { useLogout, useMe } from "@/services/auth";
+import { useGetAllReviewSubmissions } from "@/services/review-submissions";
 
 export function AppSidebar() {
   const { setOpenMobile } = useSidebar();
   const { data: user } = useMe();
   const logout = useLogout();
+  const { data: submissions } = useGetAllReviewSubmissions();
+  /** Count shown next to a nav item, e.g. reviews waiting for approval. */
+  const badges: Record<string, number | undefined> = { "/admin/review-submissions": submissions?.length };
   const navigate = useNavigate();
 
   const handleLogout = () => logout.mutate(undefined, { onSettled: () => navigate("/admin/login", { replace: true }) });
@@ -52,6 +57,11 @@ export function AppSidebar() {
                         </SidebarMenuButton>
                       )}
                     </NavLink>
+                    {!!badges[item.url] && (
+                      <SidebarMenuBadge aria-label={`${badges[item.url]} مستنيين مراجعة`}>
+                        {badges[item.url]}
+                      </SidebarMenuBadge>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>

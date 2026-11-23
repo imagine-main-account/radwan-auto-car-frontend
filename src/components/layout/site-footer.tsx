@@ -8,9 +8,10 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t">
-      <Container className="flex flex-wrap items-center justify-between gap-4 py-8 text-sm text-muted-foreground">
-        <div className="flex flex-wrap items-center gap-4">
-          <Logo className="h-20 sm:h-20" />
+      {/* Phones: stacked and centered. Larger screens: logo + area on one side, Facebook on the other. */}
+      <Container className="flex flex-col items-center gap-3 py-8 text-center text-sm text-muted-foreground sm:flex-row sm:justify-between sm:text-start">
+        <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-4">
+          <Logo className="h-14 sm:h-20" />
           <p>{siteInfo.footerArea}</p>
         </div>
         <FacebookButton variant="ghost" size="sm">

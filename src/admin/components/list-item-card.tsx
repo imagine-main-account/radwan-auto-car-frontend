@@ -12,6 +12,8 @@ type ListItemCardProps = {
   index: number;
   total: number;
   onMove: (to: number) => void;
+  /** Disables moving, e.g. while a reorder request for the list is in flight. */
+  moveLocked?: boolean;
   visible: boolean;
   onVisibleChange: (visible: boolean) => void;
   onEdit: () => void;
@@ -26,6 +28,7 @@ export function ListItemCard({
   index,
   total,
   onMove,
+  moveLocked,
   visible,
   onVisibleChange,
   onEdit,
@@ -43,7 +46,7 @@ export function ListItemCard({
               variant="ghost"
               size="icon-sm"
               aria-label="طلّعه لفوق"
-              disabled={index === 0}
+              disabled={moveLocked || index === 0}
               onClick={() => onMove(index - 1)}
             >
               <ChevronUp />
@@ -52,7 +55,7 @@ export function ListItemCard({
               variant="ghost"
               size="icon-sm"
               aria-label="نزّله لتحت"
-              disabled={index === total - 1}
+              disabled={moveLocked || index === total - 1}
               onClick={() => onMove(index + 1)}
             >
               <ChevronDown />

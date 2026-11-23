@@ -1,32 +1,35 @@
-openapi: 3.1.0
+# Copy of the backend's contract: https://radwan-auto-car-backend.vercel.app/openapi.json
+# (Swagger UI: https://radwan-auto-car-backend.vercel.app/docs). The frontend follows it.
+openapi: "3.1.0"
 info:
-  title: Radwan Admin API
-  version: 1.0.0
-  description: |
-    Content API for the El Radwan landing page and its /admin portal.
+  title: Radwan API
+  version: "1.0.0"
+  description: |-
+    API for the El Radwan landing page and its /admin portal.
 
-    - Every 2xx body is `{ "data": ... }`; every error body is `{ "message": "..." }` (Arabic, shown to the owner as-is).
-    - Content GETs are public. Writes and /auth/* (except login) need `Authorization: Bearer <token>`.
-    - A 401 logs the admin out. Lists are returned in display order.
-    - Seed data / example payloads: `public/mock-api/*.json` in the frontend repo.
-
+    - Success bodies are `{ "data": ... }`. Errors are `{ "message": "..." }` in Arabic, shown to the owner as-is.
+    - Reading content and sending a review (**POST /review-submissions**) are public. Everything else needs a token: log in with **POST /auth/login**, then press **Authorize** and paste `data.token`.
+    - Lists come back in display order.
+    - Images are uploaded on what they belong to (**POST /gallery**, **PUT /hero/image**, **PUT /seo/image**), get a UUID v7 id and are served at **GET /images/{id}**. Image fields are absolute URLs.
 servers:
-  - url: https://api.example.com
-
+  - url: "/"
 security:
   - bearer: []
-
 tags:
   - name: Auth
   - name: Content
-  - name: Lists
-  - name: Files
-
+  - name: Services
+  - name: Reviews
+  - name: Review submissions
+  - name: Gallery
+  - name: Images
+  - name: Health
 paths:
   /auth/login:
     post:
       tags: [Auth]
-      summary: Log in and get a token
+      summary: Log in
+      description: "Returns a JWT valid for 7 days. Copy `data.token`, press **Authorize** and paste it."
       security: []
       requestBody:
         required: true
@@ -34,10 +37,18 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password]
               properties:
-                email: { type: string, format: email }
-                password: { type: string }
+                email:
+                  type: string
+                  format: email
+                  pattern: "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                password:
+                  type: string
+                  minLength: 1
+              required: [email, password]
+            example:
+              email: "admin@radwan.com"
+              password: ""
       responses:
         "200":
           description: Logged in
@@ -45,304 +56,411 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [data]
                 properties:
                   data:
                     type: object
                     required: [token, user]
                     properties:
-                      token: { type: string }
-                      user: { $ref: "#/components/schemas/User" }
-        "401": { $ref: "#/components/responses/Error" }
-        "429": { $ref: "#/components/responses/Error" }
-
+                      token:
+                        type: string
+                      user:
+                        $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+        "429":
+          $ref: "#/components/responses/TooManyAttempts"
   /auth/me:
     get:
       tags: [Auth]
-      summary: Current user (session check)
+      summary: The logged-in admin
       responses:
         "200":
-          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/UserResponse" } } } }
-        "401": { $ref: "#/components/responses/Error" }
-
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /auth/logout:
     post:
       tags: [Auth]
-      summary: Revoke the token
+      summary: Log out
+      description: "Tokens are stateless JWTs, so nothing is revoked: the client forgets its token, which works until it expires."
       responses:
-        "200": { $ref: "#/components/responses/Empty" }
-
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /auth/password:
     put:
       tags: [Auth]
-      summary: Change password
+      summary: Change the password
+      description: Tokens issued before the change stay valid until they expire (7 days).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [currentPassword, newPassword]
               properties:
-                currentPassword: { type: string }
-                newPassword: { type: string, minLength: 8 }
+                currentPassword:
+                  type: string
+                  minLength: 1
+                newPassword:
+                  type: string
+                  minLength: 8
+              required: [currentPassword, newPassword]
       responses:
-        "200": { $ref: "#/components/responses/Empty" }
-        "422": { $ref: "#/components/responses/Error" }
-
+        "200":
+          description: Changed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
   /site-info:
     get:
       tags: [Content]
+      summary: Get site-info
       security: []
       responses:
         "200":
-          {
-            description: OK,
-            content: { application/json: { schema: { $ref: "#/components/schemas/SiteInfoResponse" } } },
-          }
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SiteInfo"
+              example:
+                data:
+                  name: "مركز الرضوان لصيانة السيارات الحديثة"
+                  area: "اللبيني، الهرم، الجيزة"
+                  address: "اللبيني، الهرم، بجوار التوحيد والنور، شارع العدوي، الجيزة"
+                  footerArea: "الهرم، الجيزة"
+                  phone: "01141592426"
+                  whatsapp: "01062834286"
+                  email: "mradwan13886@gmail.com"
+                  mapUrl: "https://www.google.com/maps/search/?api=1&query=29.978969,31.156391"
+                  facebook:
+                    page: "https://www.facebook.com/ElRadwan.ElHaram/"
+                    reviews: "https://www.facebook.com/ElRadwan.ElHaram/reviews"
+                    photos: "https://www.facebook.com/ElRadwan.ElHaram/photos"
+                  rating:
+                    percent: 98
+                    count: 303
     put:
       tags: [Content]
-      summary: Replace the whole object
-      requestBody:
-        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/SiteInfo" } } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/SiteInfoResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /hours:
-    get:
-      tags: [Content]
-      security: []
-      responses:
-        "200":
-          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/HoursResponse" } } } }
-    put:
-      tags: [Content]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Hours" } } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/HoursResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /hero:
-    get:
-      tags: [Content]
-      security: []
-      responses:
-        "200":
-          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/HeroResponse" } } } }
-    put:
-      tags: [Content]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Hero" } } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/HeroResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /banner:
-    get:
-      tags: [Content]
-      security: []
-      responses:
-        "200":
-          {
-            description: OK,
-            content: { application/json: { schema: { $ref: "#/components/schemas/BannerResponse" } } },
-          }
-    put:
-      tags: [Content]
-      requestBody:
-        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Banner" } } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/BannerResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /seo:
-    get:
-      tags: [Content]
-      security: []
-      responses:
-        "200":
-          { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/SeoResponse" } } } }
-    put:
-      tags: [Content]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Seo" } } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/SeoResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /services:
-    get:
-      tags: [Lists]
-      summary: All services in display order (hidden ones included)
-      security: []
-      responses:
-        "200":
-          {
-            description: OK,
-            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceListResponse" } } },
-          }
-    post:
-      tags: [Lists]
-      summary: Create (appended at the end)
-      requestBody:
-        {
-          required: true,
-          content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceInput" } } },
-        }
-      responses:
-        "200":
-          {
-            description: Created,
-            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /services/reorder:
-    put:
-      tags: [Lists]
-      summary: Set the order (must list every id exactly once)
-      requestBody:
-        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Reorder" } } } }
-      responses:
-        "200":
-          {
-            description: Reordered list,
-            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceListResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /services/{id}:
-    parameters: [{ $ref: "#/components/parameters/Id" }]
-    put:
-      tags: [Lists]
-      summary: Partial update (only the fields sent change)
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: "#/components/schemas/RepairServicePatch" } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/RepairServiceResponse" } } },
-          }
-        "404": { $ref: "#/components/responses/Error" }
-        "422": { $ref: "#/components/responses/Error" }
-    delete:
-      tags: [Lists]
-      responses:
-        "200": { $ref: "#/components/responses/Empty" }
-        "404": { $ref: "#/components/responses/Error" }
-
-  /reviews:
-    get:
-      tags: [Lists]
-      summary: All reviews in display order (hidden ones included)
-      security: []
-      responses:
-        "200":
-          {
-            description: OK,
-            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewListResponse" } } },
-          }
-    post:
-      tags: [Lists]
-      summary: Create (appended at the end)
-      requestBody:
-        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ReviewInput" } } } }
-      responses:
-        "200":
-          {
-            description: Created,
-            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /reviews/reorder:
-    put:
-      tags: [Lists]
-      summary: Set the order (must list every id exactly once)
-      requestBody:
-        { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Reorder" } } } }
-      responses:
-        "200":
-          {
-            description: Reordered list,
-            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewListResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /reviews/{id}:
-    parameters: [{ $ref: "#/components/parameters/Id" }]
-    put:
-      tags: [Lists]
-      summary: Partial update (only the fields sent change)
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: "#/components/schemas/ReviewPatch" } } }
-      responses:
-        "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/ReviewResponse" } } },
-          }
-        "404": { $ref: "#/components/responses/Error" }
-        "422": { $ref: "#/components/responses/Error" }
-    delete:
-      tags: [Lists]
-      responses:
-        "200": { $ref: "#/components/responses/Empty" }
-        "404": { $ref: "#/components/responses/Error" }
-
-  /gallery:
-    get:
-      tags: [Content]
-      summary: The 4 fixed gallery slots
-      security: []
-      responses:
-        "200":
-          {
-            description: OK,
-            content: { application/json: { schema: { $ref: "#/components/schemas/GalleryResponse" } } },
-          }
-    put:
-      tags: [Content]
-      summary: Replace all 4 slots (ids and layouts must stay the same)
+      summary: Replace site-info
+      description: "Send the whole object; it replaces what is saved."
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: array, minItems: 4, maxItems: 4, items: { $ref: "#/components/schemas/GalleryPhoto" } }
+            schema:
+              $ref: "#/components/schemas/SiteInfo"
+            example:
+              name: "مركز الرضوان لصيانة السيارات الحديثة"
+              area: "اللبيني، الهرم، الجيزة"
+              address: "اللبيني، الهرم، بجوار التوحيد والنور، شارع العدوي، الجيزة"
+              footerArea: "الهرم، الجيزة"
+              phone: "01141592426"
+              whatsapp: "01062834286"
+              email: "mradwan13886@gmail.com"
+              mapUrl: "https://www.google.com/maps/search/?api=1&query=29.978969,31.156391"
+              facebook:
+                page: "https://www.facebook.com/ElRadwan.ElHaram/"
+                reviews: "https://www.facebook.com/ElRadwan.ElHaram/reviews"
+                photos: "https://www.facebook.com/ElRadwan.ElHaram/photos"
+              rating:
+                percent: 98
+                count: 303
       responses:
         "200":
-          {
-            description: Saved,
-            content: { application/json: { schema: { $ref: "#/components/schemas/GalleryResponse" } } },
-          }
-        "422": { $ref: "#/components/responses/Error" }
-
-  /uploads:
-    post:
-      tags: [Files]
-      summary: Upload an image and get its public URL
-      description: Browser sends WebP, at most 1600px wide. Accept jpeg/png/webp up to 10 MB.
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SiteInfo"
+              example:
+                data:
+                  name: "مركز الرضوان لصيانة السيارات الحديثة"
+                  area: "اللبيني، الهرم، الجيزة"
+                  address: "اللبيني، الهرم، بجوار التوحيد والنور، شارع العدوي، الجيزة"
+                  footerArea: "الهرم، الجيزة"
+                  phone: "01141592426"
+                  whatsapp: "01062834286"
+                  email: "mradwan13886@gmail.com"
+                  mapUrl: "https://www.google.com/maps/search/?api=1&query=29.978969,31.156391"
+                  facebook:
+                    page: "https://www.facebook.com/ElRadwan.ElHaram/"
+                    reviews: "https://www.facebook.com/ElRadwan.ElHaram/reviews"
+                    photos: "https://www.facebook.com/ElRadwan.ElHaram/photos"
+                  rating:
+                    percent: 98
+                    count: 303
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /hours:
+    get:
+      tags: [Content]
+      summary: Get hours
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Hours"
+              example:
+                data:
+                  title: "فاتحين كل يوم"
+                  from: "من 11 الصبح"
+                  to: "لحد 10 بالليل"
+                  note: "طول أيام الأسبوع، من السبت للجمعة"
+    put:
+      tags: [Content]
+      summary: Replace hours
+      description: "Send the whole object; it replaces what is saved."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Hours"
+            example:
+              title: "فاتحين كل يوم"
+              from: "من 11 الصبح"
+              to: "لحد 10 بالليل"
+              note: "طول أيام الأسبوع، من السبت للجمعة"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Hours"
+              example:
+                data:
+                  title: "فاتحين كل يوم"
+                  from: "من 11 الصبح"
+                  to: "لحد 10 بالليل"
+                  note: "طول أيام الأسبوع، من السبت للجمعة"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /hero:
+    get:
+      tags: [Content]
+      summary: Get hero
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Hero"
+              example:
+                data:
+                  description: "ميكانيكا وكهرباء لكل العربيات الحديثة. ابعت لنا العطل على واتساب، أو اتصل وتعالى الورشة على طول."
+                  image: "/images/hero.webp"
+                  imageAlt: "عربية سودا راكنة في جراج تحت الأرض"
+    put:
+      tags: [Content]
+      summary: Replace hero
+      description: "Send the whole object except `image`; it replaces what is saved. The image only changes through PUT /hero/image."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HeroInput"
+            example:
+              description: "ميكانيكا وكهرباء لكل العربيات الحديثة. ابعت لنا العطل على واتساب، أو اتصل وتعالى الورشة على طول."
+              imageAlt: "عربية سودا راكنة في جراج تحت الأرض"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Hero"
+              example:
+                data:
+                  description: "ميكانيكا وكهرباء لكل العربيات الحديثة. ابعت لنا العطل على واتساب، أو اتصل وتعالى الورشة على طول."
+                  image: "/images/hero.webp"
+                  imageAlt: "عربية سودا راكنة في جراج تحت الأرض"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /banner:
+    get:
+      tags: [Content]
+      summary: Get banner
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Banner"
+              example:
+                data:
+                  enabled: false
+                  text: ""
+                  variant: info
+                  endsAt: null
+    put:
+      tags: [Content]
+      summary: Replace banner
+      description: "Send the whole object; it replaces what is saved."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Banner"
+            example:
+              enabled: false
+              text: ""
+              variant: info
+              endsAt: null
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Banner"
+              example:
+                data:
+                  enabled: false
+                  text: ""
+                  variant: info
+                  endsAt: null
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /seo:
+    get:
+      tags: [Content]
+      summary: Get seo
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Seo"
+              example:
+                data:
+                  title: "مركز الرضوان لصيانة السيارات الحديثة | اللبيني، الهرم"
+                  description: "مركز الرضوان لصيانة السيارات الحديثة في اللبيني بالهرم: ميكانيكا وكهرباء، عمرة رأس المحرك، وفحص العربيات قبل الشراء. فاتحين كل يوم من 11 الصبح لحد 10 بالليل."
+                  image: "/og-image.jpg"
+    put:
+      tags: [Content]
+      summary: Replace seo
+      description: "Send the whole object except `image`; it replaces what is saved. The image only changes through PUT /seo/image."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeoInput"
+            example:
+              title: "مركز الرضوان لصيانة السيارات الحديثة | اللبيني، الهرم"
+              description: "مركز الرضوان لصيانة السيارات الحديثة في اللبيني بالهرم: ميكانيكا وكهرباء، عمرة رأس المحرك، وفحص العربيات قبل الشراء. فاتحين كل يوم من 11 الصبح لحد 10 بالليل."
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Seo"
+              example:
+                data:
+                  title: "مركز الرضوان لصيانة السيارات الحديثة | اللبيني، الهرم"
+                  description: "مركز الرضوان لصيانة السيارات الحديثة في اللبيني بالهرم: ميكانيكا وكهرباء، عمرة رأس المحرك، وفحص العربيات قبل الشراء. فاتحين كل يوم من 11 الصبح لحد 10 بالليل."
+                  image: "/og-image.jpg"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /hero/image:
+    put:
+      tags: [Content]
+      summary: Upload the hero image
+      description: "JPEG, PNG or WebP up to 4 MB, in the form field `file`. Stores it, sets `image` to its absolute URL and deletes the image it replaces. Returns the saved hero."
       requestBody:
         required: true
         content:
@@ -351,220 +469,1239 @@ paths:
               type: object
               required: [file]
               properties:
-                file: { type: string, format: binary }
+                file:
+                  type: string
+                  format: binary
       responses:
         "200":
-          description: Uploaded
+          description: Saved
           content:
             application/json:
               schema:
                 type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Hero"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /seo/image:
+    put:
+      tags: [Content]
+      summary: Upload the seo image
+      description: "JPEG, PNG or WebP up to 4 MB, in the form field `file`. Stores it, sets `image` to its absolute URL and deletes the image it replaces. Returns the saved seo."
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Seo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /services:
+    get:
+      tags: [Services]
+      summary: All items in display order
+      description: "Hidden items are included; the landing page filters on `visible`."
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RepairService"
+              example:
+                data:
+                  - id: "01a204a2-7900-7704-99a4-072367e5e4a6"
+                    symptom: "العربية بتسخن أو المية بتنقص كل يوم"
+                    solution: "بنكشف على دورة التبريد ووش السلندر ونوصل لسبب نقص المية قبل ما الحرارة تأذي المحرك."
+                    visible: true
+                  - id: "01a204a2-7901-70dd-9a86-8866e5412f39"
+                    symptom: "لمبة المحرك منورة أو فيه عطل كهربا"
+                    solution: "كشف بالكمبيوتر على الحساسات والضفائر وكهرباء العربية كلها، ونحدد العطل بالظبط."
+                    visible: true
+                  - id: "01a204a2-7901-70dd-9a86-8e84067e4c64"
+                    symptom: "المحرك ضعيف أو بيطلع دخان"
+                    solution: "عمرة رأس المحرك وتجليخ البلوف على مكن متخصص جوه الورشة."
+                    visible: true
+                  - id: "01a204a2-7901-70dd-9a86-93164c062e2d"
+                    symptom: "الفتيس الأوتوماتيك بيخبط أو بيتأخر"
+                    solution: "فحص وتشخيص ناقل الحركة الأوتوماتيك وتحديد اللي محتاج يتصلح."
+                    visible: true
+                  - id: "01a204a2-7901-70dd-9a86-9403334553a0"
+                    symptom: "ناوي تشتري عربية مستعملة"
+                    solution: "بنكشف عليها كاملة قبل ما تدفع، ونقولك كل حاجة فيها بصراحة."
+                    visible: true
+                  - id: "01a204a2-7901-70dd-9a86-98fbc3b24cd5"
+                    symptom: "محتاج صيانة دورية"
+                    solution: "زيت وفلاتر وفرامل وعفشة، لكل أنواع العربيات الحديثة."
+                    visible: true
+    post:
+      tags: [Services]
+      summary: Add an item at the end
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairServiceInput"
+            example:
+              symptom: "العربية بتسخن أو المية بتنقص كل يوم"
+              solution: "بنكشف على دورة التبريد ووش السلندر ونوصل لسبب نقص المية قبل ما الحرارة تأذي المحرك."
+              visible: true
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RepairService"
+              example:
+                data:
+                  id: "01a204a2-7900-7704-99a4-072367e5e4a6"
+                  symptom: "العربية بتسخن أو المية بتنقص كل يوم"
+                  solution: "بنكشف على دورة التبريد ووش السلندر ونوصل لسبب نقص المية قبل ما الحرارة تأذي المحرك."
+                  visible: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /services/reorder:
+    put:
+      tags: [Services]
+      summary: Set the display order
+      description: "`ids` must list every item's id exactly once."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reorder"
+            example:
+              ids:
+                [
+                  "01a204a2-7901-70dd-9a86-98fbc3b24cd5",
+                  "01a204a2-7901-70dd-9a86-9403334553a0",
+                  "01a204a2-7901-70dd-9a86-93164c062e2d",
+                  "01a204a2-7901-70dd-9a86-8e84067e4c64",
+                  "01a204a2-7901-70dd-9a86-8866e5412f39",
+                  "01a204a2-7900-7704-99a4-072367e5e4a6",
+                ]
+      responses:
+        "200":
+          description: The reordered list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RepairService"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /services/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      tags: [Services]
+      summary: Change some fields
+      description: Only the fields sent change. Send at least one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepairServicePatch"
+            example:
+              visible: false
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RepairService"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [Services]
+      summary: Delete an item
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reviews:
+    get:
+      tags: [Reviews]
+      summary: All items in display order
+      description: "Hidden items are included; the landing page filters on `visible`."
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+              example:
+                data:
+                  - id: "01a204a2-7904-745f-873f-57959a2a2c47"
+                    name: Ahmed Morgan
+                    text: "مركز مميز ما شاء الله وشاطرين ما شاء الله عرفوا المشكلة على طول من اول مرة واتحلت الحمد لله"
+                    visible: true
+                  - id: "01a204a2-7904-745f-873f-5b846464825b"
+                    name: "سيف الخديوي"
+                    text: "ما شاء الله الناس محترمه و كنت بشتري عربيه و طلعوا كل حاجه في العربيه فعلا ناس محترمين ومحترفين جداً في كشف انصح بتعامل معاهم"
+                    visible: true
+                  - id: "01a204a2-7904-745f-873f-5db73a82ec2c"
+                    name: Omar Ahmed Abdullah
+                    text: "والله شهادة لله شغلكم ماشاءالله إتقان وسرعه وامانه الله يباركلكم"
+                    visible: true
+                  - id: "01a204a2-7904-745f-873f-63d2d4f7b09e"
+                    name: Salah Abd Almjeed
+                    text: "من افضل الأماكن التعاملات معها أسعار مناسبة جداً مهندسين وفنيين علي اعلى كفاءة"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-25d06fe6e54e"
+                    name: Abdulrahman Nabil
+                    text: "المركز محترم جدا و التعامل ممتاز و عندهم احدث الأجهزة و المعدات"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-283d2562c56e"
+                    name: "محمد عبد الفتاح برعي"
+                    text: "ما شاء الله ناس أفاضل ومعاملة طيبة وخبرة في اصلاح السيارة ومعرفة العيب وتحديده واصلاحه"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-2d8e2588feda"
+                    name: Amr Ali
+                    text: What amazing team, they are very professional and knows everything inside the car. I had a big issue in my car and they had done all the necessary work. I adore them and how they deal with customers, also they are doing all above with an affordable prices
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-3331a9c3e000"
+                    name: Yahia Abdelwanes
+                    text: "مركز محترم مهندس شاطر وشكرا لمركز الرضوان علي المعامله الطيبه"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-37e08ee3625c"
+                    name: Mahmoud Abozied Ahmed
+                    text: "بشمهندس محمد رضوان من افضل الناس اللي أتعاملت معاهم ربنا يبارك فيكوا حلو المشكله من اول وصلتلهم انصح الكل بصراحه بيهم شكرا جزيلا"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-3b85f199fcb8"
+                    name: Eslam EsOo
+                    text: "بصراحة مهندسين وفنين على اعلى مستوى كشفت عندهم على العربية مهندس وفنى بيفضلو يراجعو كذا مره على العربية"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-3ef5b07aa6a1"
+                    name: Mohamed Taha
+                    text: "ناس محترمة جدا وفاهمين بيعملوا ايه وبالتالى بيفروا عليك فلوسك ربنا يبارك لهم"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-41a770cf1873"
+                    name: Moha Rego
+                    text: "مركز ممتاز جدا والناس اللى شغاله فيه على قدر كبير من الاحترافيه والاحترام واسعار خدمه مميزه"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-44d3577c437f"
+                    name: Gebril Mohamed
+                    text: "بشمهندس محمد تسلم علي تعب حضرتك مركز محترم و الخدمه ممتازه ❤️"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-48c8ae7d1715"
+                    name: amr reda
+                    text: "بصراحه مكان محترم وناس محترمه ويتعامل معاه من زمان اي مشكله هو اللي بيلحقني"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-4f5f23c42a3b"
+                    name: Beshoy Hany
+                    text: "العربيه اتغيرت ١٨٠ درجه حقيقي بفضل بشمهندس محمد و سيف ♥️ شكرا ليكم مركز الرضوان"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-525cbfab9f32"
+                    name: ma7mod abou aly
+                    text: "احسن مركز اتعاملت معاه صاحبه مهندس عنده ضمير"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-561276297ccc"
+                    name: At Ma
+                    text: "كان عندي عطل بعربيه مدوخني تم إصلاح عطل بسرعه وحرفيه وسعر مناسب شكرا لمهندس محمد رضوان والعاملين"
+                    visible: true
+                  - id: "01a204a2-7905-7065-86f0-5a2bdd299237"
+                    name: Rital Mohamed
+                    text: "من افضل الأماكن التعاملت معه من حيث خبره وجوده"
+                    visible: true
+    post:
+      tags: [Reviews]
+      summary: Add an item at the end
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+            example:
+              name: Ahmed Morgan
+              text: "مركز مميز ما شاء الله وشاطرين ما شاء الله عرفوا المشكلة على طول من اول مرة واتحلت الحمد لله"
+              visible: true
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Review"
+              example:
+                data:
+                  id: "01a204a2-7904-745f-873f-57959a2a2c47"
+                  name: Ahmed Morgan
+                  text: "مركز مميز ما شاء الله وشاطرين ما شاء الله عرفوا المشكلة على طول من اول مرة واتحلت الحمد لله"
+                  visible: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /reviews/reorder:
+    put:
+      tags: [Reviews]
+      summary: Set the display order
+      description: "`ids` must list every item's id exactly once."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reorder"
+            example:
+              ids:
+                [
+                  "01a204a2-7905-7065-86f0-5a2bdd299237",
+                  "01a204a2-7905-7065-86f0-561276297ccc",
+                  "01a204a2-7905-7065-86f0-525cbfab9f32",
+                  "01a204a2-7905-7065-86f0-4f5f23c42a3b",
+                  "01a204a2-7905-7065-86f0-48c8ae7d1715",
+                  "01a204a2-7905-7065-86f0-44d3577c437f",
+                  "01a204a2-7905-7065-86f0-41a770cf1873",
+                  "01a204a2-7905-7065-86f0-3ef5b07aa6a1",
+                  "01a204a2-7905-7065-86f0-3b85f199fcb8",
+                  "01a204a2-7905-7065-86f0-37e08ee3625c",
+                  "01a204a2-7905-7065-86f0-3331a9c3e000",
+                  "01a204a2-7905-7065-86f0-2d8e2588feda",
+                  "01a204a2-7905-7065-86f0-283d2562c56e",
+                  "01a204a2-7905-7065-86f0-25d06fe6e54e",
+                  "01a204a2-7904-745f-873f-63d2d4f7b09e",
+                  "01a204a2-7904-745f-873f-5db73a82ec2c",
+                  "01a204a2-7904-745f-873f-5b846464825b",
+                  "01a204a2-7904-745f-873f-57959a2a2c47",
+                ]
+      responses:
+        "200":
+          description: The reordered list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Review"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /reviews/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      tags: [Reviews]
+      summary: Change some fields
+      description: Only the fields sent change. Send at least one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewPatch"
+            example:
+              visible: false
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Review"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [Reviews]
+      summary: Delete an item
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /review-submissions:
+    post:
+      tags: [Review submissions]
+      summary: Send a review (landing page)
+      description: "Public. The review waits for the owner to accept it. `fingerprint` identifies the browser; it and the IP are stored only as hashes, so the owner can block a spammer. A blocked sender also gets 200, but nothing is saved."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewSubmissionInput"
+            example:
+              name: "كريم"
+              text: "شغل محترم وسعر كويس."
+              fingerprint: c0a8f3e2b91d4f6a
+      responses:
+        "200":
+          description: Received
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    get:
+      tags: [Review submissions]
+      summary: Reviews waiting for the owner, newest first
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReviewSubmission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /review-submissions/{id}/accept:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Review submissions]
+      summary: Accept a review
+      description: Adds it to the end of /reviews, shown on the page.
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Review"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /review-submissions/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Review submissions]
+      summary: Reject a review
+      description: Deletes it.
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /review-submissions/{id}/block:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Review submissions]
+      summary: Reject a review and block its sender
+      description: "Deletes it and the sender's other waiting reviews. Later reviews from the same IP or the same browser are dropped silently."
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /blocked-senders:
+    get:
+      tags: [Review submissions]
+      summary: Blocked senders, newest first
+      description: Each one shows the review that got the sender blocked.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BlockedSender"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /blocked-senders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      tags: [Review submissions]
+      summary: Unblock a sender
+      responses:
+        "200":
+          description: Unblocked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /gallery:
+    get:
+      tags: [Gallery]
+      summary: All photos in display order
+      description: "Hidden photos are included; the landing page filters on `visible`."
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GalleryPhoto"
+              example:
+                data:
+                  - id: "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a70"
+                    image: "https://api.example.com/images/019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a70"
+                    caption: "رأس محرك متثبت على مكنة التجليخ"
+                    visible: true
+                  - id: "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a71"
+                    image: "https://api.example.com/images/019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a71"
+                    caption: "قاعدة البلوف بعد التجليخ"
+                    visible: true
+                  - id: "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a72"
+                    image: "https://api.example.com/images/019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a72"
+                    caption: "تظبيط بيت البلف على المكنة"
+                    visible: true
+                  - id: "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a73"
+                    image: "https://api.example.com/images/019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a73"
+                    caption: "كشف على محرك جوه الورشة"
+                    visible: true
+    post:
+      tags: [Gallery]
+      summary: Add a photo at the end
+      description: "JPEG, PNG or WebP up to 4 MB, in the form field `file`. The new photo's id is its image's id."
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, caption]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                caption:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                visible:
+                  description: Defaults to true
+                  default: "true"
+                  type: string
+                  enum: ["true", "false"]
+      responses:
+        "200":
+          description: Added
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/GalleryPhoto"
+              example:
+                data:
+                  id: "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a70"
+                  image: "https://api.example.com/images/019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a70"
+                  caption: "رأس محرك متثبت على مكنة التجليخ"
+                  visible: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /gallery/reorder:
+    put:
+      tags: [Gallery]
+      summary: Set the display order
+      description: "`ids` must list every photo's id exactly once."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reorder"
+            example:
+              ids:
+                [
+                  "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a73",
+                  "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a72",
+                  "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a71",
+                  "019a8f3c-5e21-7b4d-9c3a-2f6e8d1b4a70",
+                ]
+      responses:
+        "200":
+          description: The reordered gallery
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GalleryPhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/Invalid"
+  /gallery/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      tags: [Gallery]
+      summary: Change the caption or visibility
+      description: Only the fields sent change. Send at least one. To change the image, add a new photo and delete this one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GalleryPhotoPatch"
+            example:
+              caption: "رأس محرك بعد العمرة"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/GalleryPhoto"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Invalid"
+    delete:
+      tags: [Gallery]
+      summary: Delete a photo and its image
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /images/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Images]
+      summary: Get an image
+      description: "The URLs in gallery photos, the hero and SEO point here. Cached for a year: an image's URL never points at different bytes."
+      security: []
+      responses:
+        "200":
+          description: The image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /:
+    get:
+      tags: [Health]
+      summary: Check the API is up
+      security: []
+      responses:
+        "200":
+          description: Up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
                 properties:
                   data:
                     type: object
-                    required: [url]
                     properties:
-                      url: { type: string, example: "https://cdn.example.com/u/8f2c.webp" }
-        "413": { $ref: "#/components/responses/Error" }
-        "422": { $ref: "#/components/responses/Error" }
-
+                      status:
+                        const: ok
+              example:
+                data:
+                  status: ok
 components:
   securitySchemes:
     bearer:
       type: http
       scheme: bearer
-
+      bearerFormat: JWT
+      description: "`data.token` from POST /auth/login"
   parameters:
     Id:
       name: id
       in: path
       required: true
-      schema: { type: string }
-
+      schema:
+        type: string
+        format: uuid
+        description: UUID v7 (time-based)
   responses:
-    Error:
-      description: Error with a human-readable Arabic message
+    Unauthorized:
+      description: No token, or it is invalid or expired. The admin portal logs out on this.
       content:
         application/json:
           schema:
-            type: object
-            required: [message]
-            properties:
-              message: { type: string, example: "الإيميل أو كلمة السر غلط" }
-              errors:
-                type: object
-                description: Optional per-field messages
-                additionalProperties: { type: string }
-    Empty:
-      description: OK
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "لازم تسجّل دخول الأول"
+    NotFound:
+      description: No item with this id
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data: { type: "null" }
-
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "العنصر ده مش موجود"
+    TooLarge:
+      description: The image is over 4 MB
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "الصورة كبيرة قوي. أقصى حجم 4 ميجا."
+    Invalid:
+      description: "The data breaks a rule. `errors` has one message per field."
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "الحقل ده مطلوب"
+            errors:
+              name: "الحقل ده مطلوب"
+    TooManyAttempts:
+      description: "5 failed logins for this email from this IP in 15 minutes"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: "محاولات كتير غلط. استنى ربع ساعة وجرّب تاني."
   schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Arabic, shown to the owner as-is
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Field path -> message"
     User:
       type: object
       required: [id, name, email]
       properties:
-        id: { type: string }
-        name: { type: string }
-        email: { type: string, format: email }
-    UserResponse:
-      type: object
-      properties: { data: { $ref: "#/components/schemas/User" } }
-
-    Mobile:
-      type: string
-      pattern: "^01[0125]\\d{8}$"
-      example: "01141592426"
-
+        id:
+          type: string
+          format: uuid
+          description: UUID v7 (time-based)
+        name:
+          type: string
+        email:
+          type: string
+          format: email
     SiteInfo:
       type: object
-      required: [name, area, address, footerArea, phone, whatsapp, email, mapUrl, facebook, rating]
       properties:
-        name: { type: string, minLength: 1, maxLength: 120 }
-        area: { type: string, minLength: 1, maxLength: 80 }
-        address: { type: string, minLength: 1, maxLength: 200 }
-        footerArea: { type: string, minLength: 1, maxLength: 80 }
-        phone: { $ref: "#/components/schemas/Mobile" }
-        whatsapp: { $ref: "#/components/schemas/Mobile" }
-        email: { type: string, format: email }
-        mapUrl: { type: string, format: uri }
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        area:
+          type: string
+          minLength: 1
+          maxLength: 80
+        address:
+          type: string
+          minLength: 1
+          maxLength: 200
+        footerArea:
+          type: string
+          minLength: 1
+          maxLength: 80
+        phone:
+          type: string
+          pattern: "^01[0125]\\d{8}$"
+        whatsapp:
+          type: string
+          pattern: "^01[0125]\\d{8}$"
+        email:
+          type: string
+          format: email
+          pattern: "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        mapUrl:
+          type: string
+          format: uri
         facebook:
           type: object
-          required: [page, reviews, photos]
           properties:
-            page: { type: string, format: uri }
-            reviews: { type: string, format: uri }
-            photos: { type: string, format: uri }
+            page:
+              type: string
+              format: uri
+            reviews:
+              type: string
+              format: uri
+            photos:
+              type: string
+              format: uri
+          required: [page, reviews, photos]
         rating:
           type: object
-          required: [percent, count]
           properties:
-            percent: { type: integer, minimum: 0, maximum: 100 }
-            count: { type: integer, minimum: 0 }
-    SiteInfoResponse:
-      type: object
-      properties: { data: { $ref: "#/components/schemas/SiteInfo" } }
-
+            percent:
+              type: integer
+              minimum: 0
+              maximum: 100
+            count:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+          required: [percent, count]
+      required: [name, area, address, footerArea, phone, whatsapp, email, mapUrl, facebook, rating]
     Hours:
       type: object
-      required: [title, from, to, note]
       properties:
-        title: { type: string, minLength: 1, maxLength: 60 }
-        from: { type: string, minLength: 1, maxLength: 40 }
-        to: { type: string, minLength: 1, maxLength: 40 }
-        note: { type: string, maxLength: 120 }
-    HoursResponse:
-      type: object
-      properties: { data: { $ref: "#/components/schemas/Hours" } }
-
+        title:
+          type: string
+          minLength: 1
+          maxLength: 60
+        from:
+          type: string
+          minLength: 1
+          maxLength: 40
+        to:
+          type: string
+          minLength: 1
+          maxLength: 40
+        note:
+          type: string
+          maxLength: 120
+      required: [title, from, to, note]
     Hero:
       type: object
-      required: [description, image, imageAlt]
       properties:
-        description: { type: string, minLength: 1, maxLength: 300 }
-        image: { type: string, description: Image URL from /uploads }
-        imageAlt: { type: string, minLength: 1, maxLength: 150 }
-    HeroResponse:
-      type: object
-      properties: { data: { $ref: "#/components/schemas/Hero" } }
-
+        description:
+          type: string
+          minLength: 1
+          maxLength: 300
+        image:
+          type: string
+          minLength: 1
+        imageAlt:
+          type: string
+          minLength: 1
+          maxLength: 150
+      required: [description, image, imageAlt]
     Banner:
       type: object
-      required: [enabled, text, variant, endsAt]
-      description: "`text` is required (non-empty) when `enabled` is true."
       properties:
-        enabled: { type: boolean }
-        text: { type: string, maxLength: 160 }
-        variant: { type: string, enum: [info, warning] }
-        endsAt: { type: [string, "null"], format: date, description: "Last day shown (Cairo time), or null" }
-    BannerResponse:
-      type: object
-      properties: { data: { $ref: "#/components/schemas/Banner" } }
-
+        enabled:
+          type: boolean
+        text:
+          type: string
+          maxLength: 160
+        variant:
+          type: string
+          enum: [info, warning]
+        endsAt:
+          anyOf:
+            - type: string
+              format: date
+              pattern: "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            - type: "null"
+          description: "Last day the banner shows (Cairo time). null = no end date."
+      required: [enabled, text, variant, endsAt]
+      description: "`text` must not be empty while `enabled` is true."
     Seo:
       type: object
-      required: [title, description, image]
       properties:
-        title: { type: string, minLength: 1, maxLength: 70 }
-        description: { type: string, minLength: 1, maxLength: 170 }
-        image: { type: string, description: "Share image URL, ideally 1200x630" }
-    SeoResponse:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 70
+        description:
+          type: string
+          minLength: 1
+          maxLength: 170
+        image:
+          type: string
+          minLength: 1
+      required: [title, description, image]
+    HeroInput:
       type: object
-      properties: { data: { $ref: "#/components/schemas/Seo" } }
-
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 300
+        imageAlt:
+          type: string
+          minLength: 1
+          maxLength: 150
+      required: [description, imageAlt]
+    SeoInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 70
+        description:
+          type: string
+          minLength: 1
+          maxLength: 170
+      required: [title, description]
+    RepairService:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          description: UUID v7 (time-based)
+        symptom:
+          type: string
+          minLength: 1
+          maxLength: 100
+        solution:
+          type: string
+          minLength: 1
+          maxLength: 300
+        visible:
+          type: boolean
+      required: [id, symptom, solution, visible]
     RepairServiceInput:
       type: object
-      required: [symptom, solution, visible]
       properties:
-        symptom: { type: string, minLength: 1, maxLength: 100 }
-        solution: { type: string, minLength: 1, maxLength: 300 }
-        visible: { type: boolean }
+        symptom:
+          type: string
+          minLength: 1
+          maxLength: 100
+        solution:
+          type: string
+          minLength: 1
+          maxLength: 300
+        visible:
+          type: boolean
+      required: [symptom, solution, visible]
     RepairServicePatch:
       type: object
-      minProperties: 1
       properties:
-        symptom: { type: string, minLength: 1, maxLength: 100 }
-        solution: { type: string, minLength: 1, maxLength: 300 }
-        visible: { type: boolean }
-    RepairService:
-      allOf:
-        - type: object
-          required: [id]
-          properties: { id: { type: string, readOnly: true } }
-        - $ref: "#/components/schemas/RepairServiceInput"
-    RepairServiceResponse:
+        symptom:
+          type: string
+          minLength: 1
+          maxLength: 100
+        solution:
+          type: string
+          minLength: 1
+          maxLength: 300
+        visible:
+          type: boolean
+      minProperties: 1
+    Review:
       type: object
-      properties: { data: { $ref: "#/components/schemas/RepairService" } }
-    RepairServiceListResponse:
-      type: object
-      properties: { data: { type: array, items: { $ref: "#/components/schemas/RepairService" } } }
-
+      properties:
+        id:
+          type: string
+          format: uuid
+          pattern: "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          description: UUID v7 (time-based)
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        text:
+          type: string
+          minLength: 1
+          maxLength: 400
+        visible:
+          type: boolean
+      required: [id, name, text, visible]
     ReviewInput:
       type: object
-      required: [name, text, visible]
       properties:
-        name: { type: string, minLength: 1, maxLength: 60 }
-        text: { type: string, minLength: 1, maxLength: 400 }
-        visible: { type: boolean }
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        text:
+          type: string
+          minLength: 1
+          maxLength: 400
+        visible:
+          type: boolean
+      required: [name, text, visible]
     ReviewPatch:
       type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        text:
+          type: string
+          minLength: 1
+          maxLength: 400
+        visible:
+          type: boolean
       minProperties: 1
+    ReviewSubmission:
+      type: object
+      required: [id, name, text, createdAt]
+      description: A review a visitor sent, waiting for the owner
       properties:
-        name: { type: string, minLength: 1, maxLength: 60 }
-        text: { type: string, minLength: 1, maxLength: 400 }
-        visible: { type: boolean }
-    Review:
-      allOf:
-        - type: object
-          required: [id]
-          properties: { id: { type: string, readOnly: true } }
-        - $ref: "#/components/schemas/ReviewInput"
-    ReviewResponse:
+        id:
+          type: string
+          format: uuid
+          description: UUID v7 (time-based)
+        name:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ReviewSubmissionInput:
       type: object
-      properties: { data: { $ref: "#/components/schemas/Review" } }
-    ReviewListResponse:
-      type: object
-      properties: { data: { type: array, items: { $ref: "#/components/schemas/Review" } } }
-
-    Reorder:
-      type: object
-      required: [ids]
       properties:
-        ids: { type: array, items: { type: string }, description: Every id exactly once, in the new order }
-
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        text:
+          type: string
+          minLength: 1
+          maxLength: 400
+        fingerprint:
+          type: string
+          minLength: 8
+          maxLength: 200
+          description: Browser fingerprint computed by the landing page. Stored only as a hash, used to block spammers.
+      required: [name, text, fingerprint]
+    BlockedSender:
+      type: object
+      required: [id, name, text, createdAt]
+      description: A blocked sender, with the review that got them blocked
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID v7 (time-based)
+        name:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     GalleryPhoto:
       type: object
-      required: [id, layout, image, caption]
+      required: [id, image, caption, visible]
       properties:
-        id: { type: string, enum: [feature, tile-1, tile-2, wide] }
-        layout: { type: string, enum: [feature, tile, wide] }
-        image: { type: string }
-        caption: { type: string, minLength: 1, maxLength: 80 }
-    GalleryResponse:
+        id:
+          type: string
+          format: uuid
+          description: "UUID v7. Also the id of the photo's image."
+        image:
+          type: string
+          format: uri
+          description: "Absolute URL of the image: GET /images/{id}"
+        caption:
+          type: string
+        visible:
+          type: boolean
+    GalleryPhotoPatch:
       type: object
-      properties: { data: { type: array, items: { $ref: "#/components/schemas/GalleryPhoto" } } }
+      properties:
+        caption:
+          type: string
+          minLength: 1
+          maxLength: 80
+        visible:
+          type: boolean
+      minProperties: 1
+    Reorder:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+      required: [ids]

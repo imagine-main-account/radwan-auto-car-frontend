@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { FieldGroup } from "@/components/ui/field";
 import { Toaster } from "@/components/ui/sonner";
 import { brand } from "@/config/site";
-import { USE_MOCK_API } from "@/lib/api";
 import { authToken } from "@/lib/auth-token";
 import { loginSchema, type LoginInput } from "@/schemas/content";
 import { useLogin } from "@/services/auth";
@@ -63,14 +62,6 @@ export default function LoginPage() {
               </Button>
             </FieldGroup>
           </form>
-
-          {USE_MOCK_API && (
-            <p className="mt-6 rounded-md bg-muted p-3 text-center text-xs leading-6 text-muted-foreground">
-              نسخة تجريبية، ادخل بـ
-              <br />
-              <span dir="ltr">admin@radwan.com / admin123</span>
-            </p>
-          )}
         </CardContent>
       </Card>
       <Toaster position="top-center" />

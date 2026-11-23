@@ -1,7 +1,7 @@
 /**
  * react-hook-form + shadcn `Field` wrappers. Every field shows its label, optional hint and validation error.
  */
-import type { ComponentProps, ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { Controller, type Control, type FieldPath, type FieldValues } from "react-hook-form";
 
@@ -211,13 +211,16 @@ export function DateField<T extends FieldValues>({ control, name, label, descrip
   );
 }
 
-export function ImageField<T extends FieldValues>({
+/** A picked image `File`, uploaded later with the rest of the form. Shows a local preview. */
+export function ImageFileField<T extends FieldValues>({
   control,
   name,
   label,
   description,
   aspectRatio,
 }: BaseProps<T> & { aspectRatio?: string }) {
+  const [preview, setPreview] = useState<string>();
+
   return (
     <Controller
       control={control}
@@ -227,8 +230,12 @@ export function ImageField<T extends FieldValues>({
           <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
           <ImageUpload
             id={field.name}
-            value={field.value}
-            onChange={field.onChange}
+            src={preview}
+            onSelect={(file) => {
+              if (preview) URL.revokeObjectURL(preview);
+              setPreview(URL.createObjectURL(file));
+              field.onChange(file);
+            }}
             aspectRatio={aspectRatio}
             invalid={fieldState.invalid}
           />

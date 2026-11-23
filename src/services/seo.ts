@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/r
 import { toast } from "sonner";
 
 import api from "@/lib/api";
-import type { Seo } from "@/schemas/content";
+import type { Seo, SeoInput } from "@/schemas/content";
 import type { ApiResponse } from "@/types/api";
 
 const SeoApi = {
@@ -11,8 +11,15 @@ const SeoApi = {
     return res.data.data;
   },
 
-  update: async (data: Seo) => {
+  update: async (data: SeoInput) => {
     const res = await api.put<ApiResponse<Seo>>("/seo", data);
+    return res.data.data;
+  },
+
+  uploadImage: async (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await api.put<ApiResponse<Seo>>("/seo/image", body);
     return res.data.data;
   },
 };
@@ -31,10 +38,23 @@ export const useUpdateSeo = () => {
 
   return useMutation({
     mutationKey: ["updateSeo"],
-    mutationFn: (data: Seo) => SeoApi.update(data),
+    mutationFn: (data: SeoInput) => SeoApi.update(data),
     onSuccess: (saved) => {
       queryClient.setQueryData(seoQuery.queryKey, saved);
       toast.success("اتحفظت إعدادات جوجل والمشاركة");
+    },
+  });
+};
+
+export const useUploadSeoImage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: ["uploadSeoImage"],
+    mutationFn: (file: File) => SeoApi.uploadImage(file),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(seoQuery.queryKey, saved);
+      toast.success("اتغيرت صورة المشاركة");
     },
   });
 };

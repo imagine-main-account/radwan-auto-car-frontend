@@ -1,15 +1,19 @@
 import { FacebookButton } from "@/components/shared/contact-buttons";
 import { Section, SectionTitle } from "@/components/shared/section";
 import { useSiteContent } from "@/hooks/use-site-content";
-import type { GalleryPhoto } from "@/schemas/content";
 import { cn } from "@/lib/utils";
 import { HoursCta } from "./hours-cta";
 
-const layoutClass: Record<GalleryPhoto["layout"], string> = {
-  feature: "col-span-2 row-span-2 aspect-4/3 lg:aspect-auto",
-  tile: "aspect-4/3 lg:aspect-auto",
-  wide: "col-span-2 aspect-2/1 lg:aspect-auto",
-};
+/**
+ * Photos are laid out in groups of 4: one big, two small, one wide (on desktop: a 4 x 2 block).
+ * The pattern repeats for every 4 photos, so 4 or 8 visible photos fill the grid exactly.
+ */
+const patternClass = [
+  "col-span-2 row-span-2 aspect-4/3 lg:aspect-auto",
+  "aspect-4/3 lg:aspect-auto",
+  "aspect-4/3 lg:aspect-auto",
+  "col-span-2 aspect-2/1 lg:aspect-auto",
+];
 
 export function Workshop() {
   const { siteInfo, gallery } = useSiteContent();
@@ -19,16 +23,16 @@ export function Workshop() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <SectionTitle>شغلنا بيتكلم</SectionTitle>
-          <p className="mt-3 text-muted-foreground">صور حقيقية من جوه الورشة في اللبيني.</p>
+          <p className="mt-3 text-muted-foreground">صور حقيقية من جوه الورشة.</p>
         </div>
         <FacebookButton href={siteInfo.facebook.photos} variant="outline">
           صور أكتر على فيسبوك
         </FacebookButton>
       </div>
 
-      <ul className="mt-10 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:grid-rows-[17rem_17rem]">
-        {gallery.map(({ id, image, caption, layout }) => (
-          <li key={id} className={cn("relative overflow-hidden rounded-lg bg-card", layoutClass[layout])}>
+      <ul className="mt-10 grid grid-cols-2 gap-3 lg:auto-rows-[17rem] lg:grid-cols-4">
+        {gallery.map(({ id, image, caption }, index) => (
+          <li key={id} className={cn("relative overflow-hidden rounded-lg bg-card", patternClass[index % 4])}>
             <figure>
               <img
                 src={image}

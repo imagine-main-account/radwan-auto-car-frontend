@@ -5,7 +5,7 @@
  * - dist/index.html = the landing page rendered to HTML with its content embedded,
  *   so it paints without waiting for JavaScript or the API.
  *
- * Content comes from VITE_API_URL when set, otherwise from the mock API files.
+ * Content comes from the API at VITE_API_URL.
  * If it can't be loaded, index.html is left as a plain single-page app.
  */
 import fs from "node:fs/promises";
@@ -26,13 +26,10 @@ const escapeHtml = (value) =>
 const serialize = (value) => JSON.stringify(value).replaceAll("<", "\\u003c");
 
 async function load(resource) {
-  if (apiUrl) {
-    const res = await fetch(`${apiUrl}/${resource}`);
-    if (!res.ok) throw new Error(`GET ${apiUrl}/${resource} -> ${res.status}`);
-    return (await res.json()).data;
-  }
-  const file = await fs.readFile(path.join(dist, "mock-api", `${resource}.json`), "utf8");
-  return JSON.parse(file).data;
+  if (!apiUrl) throw new Error("VITE_API_URL is not set");
+  const res = await fetch(`${apiUrl}/${resource}`);
+  if (!res.ok) throw new Error(`GET ${apiUrl}/${resource} -> ${res.status}`);
+  return (await res.json()).data;
 }
 
 /** Inlined into the page (serialized with toString), so it must be self-contained. */
@@ -48,6 +45,24 @@ function startAfterPaint(src) {
     new Observer(start).observe({ type: "largest-contentful-paint", buffered: true });
   }
   globalThis.addEventListener("load", () => setTimeout(start, 3000), { once: true });
+}
+
+/** Local business data for Google Search / Maps, from the admin's contact info. */
+function businessJsonLd({ "site-info": info, seo }) {
+  // Coordinates from a Google Maps link like ".../search/?api=1&query=29.978969,31.156391", when present.
+  const coords = info.mapUrl.match(/(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/);
+  return {
+    "@context": "https://schema.org",
+    "@type": "AutoRepair",
+    name: info.name,
+    image: seo.image,
+    telephone: `+2${info.phone}`,
+    email: info.email,
+    address: { "@type": "PostalAddress", streetAddress: info.address, addressCountry: "EG" },
+    ...(coords && { geo: { "@type": "GeoCoordinates", latitude: Number(coords[1]), longitude: Number(coords[2]) } }),
+    hasMap: info.mapUrl,
+    sameAs: [info.facebook.page],
+  };
 }
 
 function setMeta(html, attribute, key, value) {
@@ -82,7 +97,10 @@ try {
     .replace(/\s*<link rel="modulepreload"[^>]*>/g, "")
     .replace("</body>", `  ${deferredEntry}\n  </body>`)
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(seo.title)}</title>`)
-    .replace("</head>", `${fontPreload}</head>`)
+    .replace(
+      "</head>",
+      `  <script type="application/ld+json">${serialize(businessJsonLd(content))}</script>\n  ${fontPreload}</head>`,
+    )
     .replace(
       '<div id="root"></div>',
       `<div id="root">${html}</div>\n    <script>window.__QUERY_STATE__=${serialize(state)}</script>`,
@@ -93,7 +111,7 @@ try {
   page = setMeta(page, "property", "og:image", seo.image);
 
   await fs.writeFile(path.join(dist, "index.html"), page);
-  console.log(`[prerender] / rendered from ${apiUrl ?? "mock API"} (${(page.length / 1024).toFixed(1)} KB)`);
+  console.log(`[prerender] / rendered from ${apiUrl} (${(page.length / 1024).toFixed(1)} KB)`);
 } catch (error) {
   console.warn(`[prerender] skipped, index.html stays a plain SPA: ${error.message}`);
 } finally {

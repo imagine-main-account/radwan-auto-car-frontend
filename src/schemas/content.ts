@@ -15,8 +15,6 @@ const mobile = z
 
 const url = z.url("اكتب رابط صحيح يبدأ بـ https://");
 
-const image = z.string().min(1, "اختار صورة");
-
 const count = z.number("اكتب رقم").int("اكتب رقم صحيح").min(0, "الرقم لازم يكون 0 أو أكتر");
 
 /* ---------- Singletons ---------- */
@@ -43,12 +41,13 @@ export const hoursSchema = z.object({
 });
 export type Hours = z.infer<typeof hoursSchema>;
 
-export const heroSchema = z.object({
+/** The image is not part of the form: it is uploaded on its own (PUT /hero/image). */
+export const heroInputSchema = z.object({
   description: text(300),
-  image,
   imageAlt: text(150),
 });
-export type Hero = z.infer<typeof heroSchema>;
+export type HeroInput = z.infer<typeof heroInputSchema>;
+export type Hero = HeroInput & { image: string };
 
 export const bannerVariants = ["info", "warning"] as const;
 
@@ -66,12 +65,13 @@ export const bannerSchema = z
   });
 export type Banner = z.infer<typeof bannerSchema>;
 
-export const seoSchema = z.object({
+/** The image is not part of the form: it is uploaded on its own (PUT /seo/image). */
+export const seoInputSchema = z.object({
   title: text(70),
   description: text(170),
-  image,
 });
-export type Seo = z.infer<typeof seoSchema>;
+export type SeoInput = z.infer<typeof seoInputSchema>;
+export type Seo = SeoInput & { image: string };
 
 /* ---------- Collections ---------- */
 
@@ -91,17 +91,30 @@ export const reviewInputSchema = z.object({
 export type ReviewInput = z.infer<typeof reviewInputSchema>;
 export type Review = ReviewInput & { id: string };
 
-export const galleryLayouts = ["feature", "tile", "wide"] as const;
-
-export const galleryPhotoSchema = z.object({
-  id: z.string(),
-  layout: z.enum(galleryLayouts),
-  image,
+/** Editable fields of a gallery photo. The image itself can't change: add a new photo instead. */
+export const galleryPhotoPatchSchema = z.object({
   caption: text(80),
+  visible: z.boolean(),
 });
-export type GalleryPhoto = z.infer<typeof galleryPhotoSchema>;
+export type GalleryPhotoPatch = z.infer<typeof galleryPhotoPatchSchema>;
+export type GalleryPhoto = GalleryPhotoPatch & { id: string; image: string };
 
-export const gallerySchema = z.object({ photos: z.array(galleryPhotoSchema) });
+export const galleryPhotoInputSchema = galleryPhotoPatchSchema.extend({
+  file: z.custom<File>((value) => typeof File !== "undefined" && value instanceof File, "اختار صورة"),
+});
+export type GalleryPhotoInput = z.infer<typeof galleryPhotoInputSchema>;
+
+/* ---------- Review submissions (sent by visitors from the landing page) ---------- */
+
+export const reviewSubmissionInputSchema = z.object({
+  name: text(60),
+  text: text(400),
+});
+export type ReviewSubmissionInput = z.infer<typeof reviewSubmissionInputSchema>;
+export type ReviewSubmission = ReviewSubmissionInput & { id: string; createdAt: string };
+
+/** A blocked sender, with the review that got them blocked. */
+export type BlockedSender = ReviewSubmission;
 
 /* ---------- Auth ---------- */
 

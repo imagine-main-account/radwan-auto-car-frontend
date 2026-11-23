@@ -2,12 +2,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
 import { AdminForm } from "@/admin/components/admin-form";
-import { ImageField, TextareaField, TextField } from "@/admin/components/form-fields";
+import { TextareaField, TextField } from "@/admin/components/form-fields";
 import { FormSection } from "@/admin/components/form-section";
+import { ImageUploadField } from "@/admin/components/image-upload";
 import { PageHeader } from "@/admin/components/page-header";
 import { QueryState } from "@/admin/components/query-state";
-import { heroSchema, type Hero } from "@/schemas/content";
-import { useGetHero, useUpdateHero } from "@/services/hero";
+import { heroInputSchema, type Hero, type HeroInput } from "@/schemas/content";
+import { useGetHero, useUpdateHero, useUploadHeroImage } from "@/services/hero";
 
 export default function HeroPage() {
   const query = useGetHero();
@@ -22,14 +23,22 @@ export default function HeroPage() {
 
 function HeroForm({ hero }: { hero: Hero }) {
   const update = useUpdateHero();
-  const form = useForm<Hero>({ resolver: zodResolver(heroSchema), defaultValues: hero });
+  const uploadImage = useUploadHeroImage();
+  const form = useForm<HeroInput>({
+    resolver: zodResolver(heroInputSchema),
+    defaultValues: { description: hero.description, imageAlt: hero.imageAlt },
+  });
   const { control } = form;
 
   return (
     <AdminForm
       form={form}
       pending={update.isPending}
-      onSubmit={(values) => update.mutate(values, { onSuccess: (saved) => form.reset(saved) })}
+      onSubmit={(values) =>
+        update.mutate(values, {
+          onSuccess: (saved) => form.reset({ description: saved.description, imageAlt: saved.imageAlt }),
+        })
+      }
     >
       <FormSection title="النص">
         <TextareaField
@@ -42,10 +51,12 @@ function HeroForm({ hero }: { hero: Hero }) {
       </FormSection>
 
       <FormSection title="الصورة">
-        <ImageField
-          control={control}
-          name="image"
+        <ImageUploadField
+          id="hero-image"
           label="صورة الواجهة"
+          src={hero.image}
+          onSelect={(file) => uploadImage.mutate(file)}
+          pending={uploadImage.isPending}
           aspectRatio="3 / 2"
           description="صورة عرضية بجودة عالية. على الكمبيوتر بتظهر على الشمال وعلى الموبايل فوق النص."
         />

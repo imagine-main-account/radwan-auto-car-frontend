@@ -2,12 +2,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch, type Control } from "react-hook-form";
 
 import { AdminForm } from "@/admin/components/admin-form";
-import { ImageField, TextareaField, TextField } from "@/admin/components/form-fields";
+import { TextareaField, TextField } from "@/admin/components/form-fields";
 import { FormSection } from "@/admin/components/form-section";
+import { ImageUploadField } from "@/admin/components/image-upload";
 import { PageHeader } from "@/admin/components/page-header";
 import { QueryState } from "@/admin/components/query-state";
-import { seoSchema, type Seo } from "@/schemas/content";
-import { useGetSeo, useUpdateSeo } from "@/services/seo";
+import { seoInputSchema, type Seo, type SeoInput } from "@/schemas/content";
+import { useGetSeo, useUpdateSeo, useUploadSeoImage } from "@/services/seo";
 
 export default function SeoPage() {
   const query = useGetSeo();
@@ -25,14 +26,22 @@ export default function SeoPage() {
 
 function SeoForm({ seo }: { seo: Seo }) {
   const update = useUpdateSeo();
-  const form = useForm<Seo>({ resolver: zodResolver(seoSchema), defaultValues: seo });
+  const uploadImage = useUploadSeoImage();
+  const form = useForm<SeoInput>({
+    resolver: zodResolver(seoInputSchema),
+    defaultValues: { title: seo.title, description: seo.description },
+  });
   const { control } = form;
 
   return (
     <AdminForm
       form={form}
       pending={update.isPending}
-      onSubmit={(values) => update.mutate(values, { onSuccess: (saved) => form.reset(saved) })}
+      onSubmit={(values) =>
+        update.mutate(values, {
+          onSuccess: (saved) => form.reset({ title: saved.title, description: saved.description }),
+        })
+      }
     >
       <FormSection title="نتيجة البحث">
         <TextField control={control} name="title" label="العنوان" counter={70} description="اسم الورشة والمنطقة" />
@@ -47,10 +56,12 @@ function SeoForm({ seo }: { seo: Seo }) {
       </FormSection>
 
       <FormSection title="صورة المشاركة">
-        <ImageField
-          control={control}
-          name="image"
+        <ImageUploadField
+          id="seo-image"
           label="الصورة"
+          src={seo.image}
+          onSelect={(file) => uploadImage.mutate(file)}
+          pending={uploadImage.isPending}
           aspectRatio="1200 / 630"
           description="بتظهر لما حد يبعت لينك الموقع على واتساب أو فيسبوك. المقاس المثالي 1200×630."
         />
@@ -60,7 +71,7 @@ function SeoForm({ seo }: { seo: Seo }) {
 }
 
 /** Rough preview of the Google search result. */
-function SearchPreview({ control }: { control: Control<Seo> }) {
+function SearchPreview({ control }: { control: Control<SeoInput> }) {
   const [title, description] = useWatch({ control, name: ["title", "description"] });
 
   return (

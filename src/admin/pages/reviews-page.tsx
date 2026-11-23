@@ -16,6 +16,7 @@ import {
   useCreateReview,
   useDeleteReview,
   useGetAllReviews,
+  useIsReorderingReviews,
   useReorderReviews,
   useUpdateReview,
 } from "@/services/reviews";
@@ -72,6 +73,7 @@ function ReviewRow({ review: { id, ...review }, index, reviews }: ReviewRowProps
   const update = useUpdateReview(id);
   const remove = useDeleteReview(id);
   const reorder = useReorderReviews();
+  const reordering = useIsReorderingReviews();
   const [editing, setEditing] = useState(false);
 
   return (
@@ -86,6 +88,7 @@ function ReviewRow({ review: { id, ...review }, index, reviews }: ReviewRowProps
         onDelete={() => remove.mutate()}
         deleteTitle={`تمسح رأي ${review.name}؟`}
         busy={update.isPending || remove.isPending}
+        moveLocked={reordering}
       >
         <p className="leading-7">«{review.text}»</p>
         <p className="mt-1 text-sm text-muted-foreground">{review.name}</p>

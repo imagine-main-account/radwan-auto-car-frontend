@@ -1,4 +1,4 @@
-import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import api from "@/lib/api";
@@ -80,12 +80,14 @@ export const useDeleteRepairService = (id: string) => {
   });
 };
 
+const reorderMutationKey = ["reorderRepairServices"];
+
 /** Moves items instantly in the UI, then rolls back if the server rejects the new order. */
 export const useReorderRepairServices = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationKey: ["reorderRepairServices"],
+    mutationKey: reorderMutationKey,
     mutationFn: (ids: string[]) => RepairServicesApi.reorder(ids),
     onMutate: async (ids) => {
       await queryClient.cancelQueries({ queryKey: repairServicesQuery.queryKey });
@@ -102,4 +104,9 @@ export const useReorderRepairServices = () => {
       queryClient.invalidateQueries({ queryKey: repairServicesQuery.queryKey });
     },
   });
+};
+
+/** True while any reorder request is in flight, so the list can lock its move buttons. */
+export const useIsReorderingRepairServices = () => {
+  return useIsMutating({ mutationKey: reorderMutationKey }) > 0;
 };

@@ -46,7 +46,7 @@ export const useLandingContent = () => {
     seo: seo.data,
     services: services.data.filter((service) => service.visible),
     reviews: reviews.data.filter((review) => review.visible),
-    gallery: gallery.data,
+    gallery: gallery.data.filter((photo) => photo.visible),
   };
 };
 

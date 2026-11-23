@@ -2,6 +2,7 @@ import {
   Clock,
   Contact,
   Images,
+  Inbox,
   LayoutDashboard,
   Megaphone,
   MessageSquareQuote,
@@ -48,7 +49,13 @@ export const adminNavGroups: { label: string; items: AdminNavItem[] }[] = [
         url: "/admin/reviews",
         icon: MessageSquareQuote,
       },
-      { title: "صور الورشة", description: "الـ 4 صور في قسم «شغلنا بيتكلم»", url: "/admin/gallery", icon: Images },
+      {
+        title: "آراء جديدة",
+        description: "آراء بعتها الزوار من الموقع، اقبلها أو ارفضها",
+        url: "/admin/review-submissions",
+        icon: Inbox,
+      },
+      { title: "صور الورشة", description: "الصور في قسم «شغلنا بيتكلم»", url: "/admin/gallery", icon: Images },
     ],
   },
   {
