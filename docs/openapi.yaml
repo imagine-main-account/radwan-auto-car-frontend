@@ -10,7 +10,7 @@ info:
     - Success bodies are `{ "data": ... }`. Errors are `{ "message": "..." }` in Arabic, shown to the owner as-is.
     - Reading content and sending a review (**POST /review-submissions**) are public. Everything else needs a token: log in with **POST /auth/login**, then press **Authorize** and paste `data.token`.
     - Lists come back in display order.
-    - Images are uploaded on what they belong to (**POST /gallery**, **PUT /hero/image**, **PUT /seo/image**), get a UUID v7 id and are served at **GET /images/{id}**. Image fields are absolute URLs.
+    - Images are uploaded on what they belong to (**POST /gallery**, **PUT /gallery/{id}**, **PUT /hero/image**, **PUT /seo/image**), get a UUID v7 id and are served at **GET /images/{id}**. Image fields are absolute URLs.
 servers:
   - url: "/"
 security:
@@ -1114,7 +1114,7 @@ paths:
     post:
       tags: [Gallery]
       summary: Add a photo at the end
-      description: "JPEG, PNG or WebP up to 4 MB, in the form field `file`. The new photo's id is its image's id."
+      description: "JPEG, PNG or WebP up to 4 MB, in the form field `file`."
       requestBody:
         required: true
         content:
@@ -1199,8 +1199,8 @@ paths:
       - $ref: "#/components/parameters/Id"
     put:
       tags: [Gallery]
-      summary: Change the caption or visibility
-      description: Only the fields sent change. Send at least one. To change the image, add a new photo and delete this one.
+      summary: Change the caption, visibility or image
+      description: "Only what is sent changes. Send at least one thing. Send JSON to change the caption or visibility, or multipart/form-data to also replace the image (JPEG, PNG or WebP up to 4 MB, in the form field `file`. Optional). A new image keeps the photo's id, caption, visibility and position; its image URL changes and the old image is deleted."
       requestBody:
         required: true
         content:
@@ -1209,6 +1209,21 @@ paths:
               $ref: "#/components/schemas/GalleryPhotoPatch"
             example:
               caption: "رأس محرك بعد العمرة"
+          multipart/form-data:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                file:
+                  type: string
+                  format: binary
+                caption:
+                  type: string
+                  minLength: 1
+                  maxLength: 80
+                visible:
+                  type: string
+                  enum: ["true", "false"]
       responses:
         "200":
           description: Saved
@@ -1224,6 +1239,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/TooLarge"
         "422":
           $ref: "#/components/responses/Invalid"
     delete:

@@ -211,14 +211,18 @@ export function DateField<T extends FieldValues>({ control, name, label, descrip
   );
 }
 
-/** A picked image `File`, uploaded later with the rest of the form. Shows a local preview. */
+/**
+ * A picked image `File`, uploaded later with the rest of the form. Shows a local preview,
+ * or `currentSrc` (the saved image) until a new one is picked.
+ */
 export function ImageFileField<T extends FieldValues>({
   control,
   name,
   label,
   description,
   aspectRatio,
-}: BaseProps<T> & { aspectRatio?: string }) {
+  currentSrc,
+}: BaseProps<T> & { aspectRatio?: string; currentSrc?: string }) {
   const [preview, setPreview] = useState<string>();
 
   return (
@@ -230,7 +234,7 @@ export function ImageFileField<T extends FieldValues>({
           <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
           <ImageUpload
             id={field.name}
-            src={preview}
+            src={preview ?? currentSrc}
             onSelect={(file) => {
               if (preview) URL.revokeObjectURL(preview);
               setPreview(URL.createObjectURL(file));

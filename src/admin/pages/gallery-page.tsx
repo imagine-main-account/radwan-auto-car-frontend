@@ -143,10 +143,14 @@ function EditPhotoForm({ image, defaultValues, onSubmit }: EditPhotoFormProps) {
 
   return (
     <form id={ITEM_FORM_ID} noValidate onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6">
-      <div className="grid gap-2">
-        <img src={image} alt="" className="aspect-4/3 w-full rounded-lg bg-muted object-cover" />
-        <p className="text-sm text-muted-foreground">عشان تغيّر الصورة نفسها، ضيف صورة جديدة وامسح دي.</p>
-      </div>
+      <ImageFileField
+        control={control}
+        name="file"
+        label="الصورة"
+        description="اختار صورة جديدة لو عايز تغيّرها."
+        aspectRatio="4 / 3"
+        currentSrc={image}
+      />
       <TextField control={control} name="caption" label="الوصف" counter={80} autoFocus />
       <SwitchField control={control} name="visible" label="تظهر في الصفحة" />
     </form>

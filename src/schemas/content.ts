@@ -91,18 +91,20 @@ export const reviewInputSchema = z.object({
 export type ReviewInput = z.infer<typeof reviewInputSchema>;
 export type Review = ReviewInput & { id: string };
 
-/** Editable fields of a gallery photo. The image itself can't change: add a new photo instead. */
-export const galleryPhotoPatchSchema = z.object({
+const galleryPhotoFieldsSchema = z.object({
   caption: text(80),
   visible: z.boolean(),
 });
-export type GalleryPhotoPatch = z.infer<typeof galleryPhotoPatchSchema>;
-export type GalleryPhoto = GalleryPhotoPatch & { id: string; image: string };
+export type GalleryPhoto = z.infer<typeof galleryPhotoFieldsSchema> & { id: string; image: string };
 
-export const galleryPhotoInputSchema = galleryPhotoPatchSchema.extend({
-  file: z.custom<File>((value) => typeof File !== "undefined" && value instanceof File, "اختار صورة"),
-});
+const imageFile = z.custom<File>((value) => typeof File !== "undefined" && value instanceof File, "اختار صورة");
+
+export const galleryPhotoInputSchema = galleryPhotoFieldsSchema.extend({ file: imageFile });
 export type GalleryPhotoInput = z.infer<typeof galleryPhotoInputSchema>;
+
+/** Editing a photo: a new `file` replaces the image, leaving it out keeps the current one. */
+export const galleryPhotoPatchSchema = galleryPhotoFieldsSchema.extend({ file: imageFile.optional() });
+export type GalleryPhotoPatch = z.infer<typeof galleryPhotoPatchSchema>;
 
 /* ---------- Review submissions (sent by visitors from the landing page) ---------- */
 

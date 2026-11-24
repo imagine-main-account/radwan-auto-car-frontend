@@ -21,8 +21,16 @@ const GalleryApi = {
     return res.data.data;
   },
 
-  update: async (id: string, data: Partial<GalleryPhotoPatch>) => {
-    const res = await api.put<ApiResponse<GalleryPhoto>>(`/gallery/${id}`, data);
+  /** JSON when only the caption or visibility change, multipart when a new image is sent too. */
+  update: async (id: string, { file, ...fields }: Partial<GalleryPhotoPatch>) => {
+    let body: Partial<GalleryPhotoPatch> | FormData = fields;
+    if (file) {
+      body = new FormData();
+      body.append("file", file);
+      if (fields.caption !== undefined) body.append("caption", fields.caption);
+      if (fields.visible !== undefined) body.append("visible", String(fields.visible));
+    }
+    const res = await api.put<ApiResponse<GalleryPhoto>>(`/gallery/${id}`, body);
     return res.data.data;
   },
 
